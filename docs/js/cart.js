@@ -1,0 +1,26 @@
+(() => {
+  const root = document.querySelector('#cart-root'); if (!root) return;
+  const delivery = 99;
+  function render() {
+    const cart = Store.read(Store.CART_KEY, []);
+    const lines = cart.map(item => ({...item, product:Store.products.find(p => p.id === item.id)})).filter(item => item.product);
+    const subtotal = lines.reduce((sum,item) => sum + item.product.price*item.qty, 0);
+    const shipping = subtotal === 0 || subtotal >= 2500 ? 0 : delivery;
+    root.innerHTML = lines.length ? `<div class="cart-layout"><div class="cart-items"><div class="cart-heading"><span>Product</span><span>Quantity</span><span>Total</span></div>${lines.map(item => `<article class="cart-row"><a href="product.html?id=${encodeURIComponent(item.id)}" class="cart-thumb"><img src="${item.product.image}" alt="${item.product.name}" onerror="this.style.display='none'"></a><div class="cart-product"><a href="product.html?id=${encodeURIComponent(item.id)}">${item.product.name}</a><span>${item.color} · Size ${item.size}</span><strong>${Store.money(item.product.price)}</strong><button class="remove-item" data-remove="${item.id}" data-size="${item.size}" data-color="${item.color}" type="button">Remove</button></div><div class="quantity-control"><button data-qty="-1" data-id="${item.id}" data-size="${item.size}" data-color="${item.color}" aria-label="Decrease quantity">−</button><span>${item.qty}</span><button data-qty="1" data-id="${item.id}" data-size="${item.size}" data-color="${item.color}" aria-label="Increase quantity">＋</button></div><strong class="line-total">${Store.money(item.product.price*item.qty)}</strong></article>`).join('')}</div><aside class="order-summary"><p class="eyebrow">Your order</p><h2>Order summary</h2><div><span>Subtotal</span><strong>${Store.money(subtotal)}</strong></div><div><span>Delivery</span><strong>${shipping === 0 ? 'Free' : Store.money(shipping)}</strong></div><p class="shipping-note">${subtotal >= 2500 ? 'You unlocked free delivery.' : `Add ${Store.money(Math.max(0,2500-subtotal))} more for free delivery.`}</p><div class="summary-total"><span>Total</span><strong>${Store.money(subtotal+shipping)}</strong></div><button id="checkout-toggle" class="button button-dark button-full" type="button">Continue to checkout</button><p class="secure-note">Demo checkout · No payment will be collected</p><a class="continue-shopping" href="shop.html">Continue shopping ←</a></aside></div><section id="checkout-panel" class="checkout-panel" hidden><div><p class="eyebrow">Demo checkout</p><h2>Where should we send updates?</h2><p>This prototype stores a demo order in this browser only. It does not charge you or send an order to a store.</p></div><form id="checkout-form" class="checkout-form"><label>Full name<input name="name" required minlength="2" autocomplete="name"></label><label>Email address<input name="email" type="email" required autocomplete="email"></label><label>Delivery address<textarea name="address" required minlength="8" rows="3"></textarea></label><button class="button button-dark" type="submit">Place demo order</button></form></section>` : `<div class="empty-cart"><div class="empty-icon">✳</div><p class="eyebrow">A little room for something lovely</p><h2>Your bag is empty.</h2><p>Explore considered essentials and find your next favourite.</p><a class="button button-dark" href="shop.html">Explore the collection</a></div>`;
+    Store.updateHeader();
+  }
+  root.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove]');
+    if (remove) { const next=Store.read(Store.CART_KEY,[]).filter(i=>!(i.id===remove.dataset.remove && i.size===remove.dataset.size && i.color===remove.dataset.color));Store.write(Store.CART_KEY,next);render();Store.toast('Item removed from bag');return; }
+    const qty = event.target.closest('[data-qty]');
+    if (qty) { const next=Store.read(Store.CART_KEY,[]);const item=next.find(i=>i.id===qty.dataset.id&&i.size===qty.dataset.size&&i.color===qty.dataset.color);if(item){item.qty+=Number(qty.dataset.qty);if(item.qty<=0)next.splice(next.indexOf(item),1);}Store.write(Store.CART_KEY,next);render();return; }
+    if (event.target.closest('#checkout-toggle')) { document.querySelector('#checkout-panel').hidden=false;document.querySelector('#checkout-panel').scrollIntoView({behavior:'smooth',block:'start'}); }
+  });
+  root.addEventListener('submit', event => {
+    if (event.target.id !== 'checkout-form') return;
+    event.preventDefault();const form=new FormData(event.target);const order={id:`AC-${Date.now().toString().slice(-7)}`,name:form.get('name'),email:form.get('email'),address:form.get('address'),items:Store.read(Store.CART_KEY,[]),createdAt:new Date().toISOString()};
+    const orders=Store.read('apexcare-demo-orders-v1',[]);orders.push(order);Store.write('apexcare-demo-orders-v1',orders);Store.write(Store.CART_KEY,[]);
+    root.innerHTML=`<div class="empty-cart order-success"><div class="empty-icon">✓</div><p class="eyebrow">Demo order saved</p><h2>Thank you, ${String(order.name).replace(/[&<>"']/g,'')}.</h2><p>Your demo reference is <strong>${order.id}</strong>. No payment was processed and no real order was sent.</p><a class="button button-dark" href="shop.html">Back to the collection</a></div>`;Store.updateHeader();
+  });
+  render();
+})();
